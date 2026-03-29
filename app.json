@@ -7,8 +7,18 @@
     "android": {
       "package": "com.harlley.pilulaana",
       "versionCode": 1,
-      "permissions": ["VIBRATE","RECEIVE_BOOT_COMPLETED"]
+      "permissions": [
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
-    "plugins": ["expo-notifications"]
+    "plugins": [
+      "expo-notifications"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4a6175cb-830a-423f-9470-3f206300c2f8"
+      }
+    }
   }
 }
