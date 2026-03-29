@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Pilula da Ana",
+    "slug": "pilula-ana",
+    "version": "1.0.0",
+    "owner": "harlleydaana",
+    "android": {
+      "package": "com.harlley.pilulaana",
+      "versionCode": 1,
+      "permissions": ["VIBRATE","RECEIVE_BOOT_COMPLETED"]
+    },
+    "plugins": ["expo-notifications"]
+  }
+}
