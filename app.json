@@ -2,23 +2,14 @@
   "expo": {
     "name": "Pilula da Ana",
     "slug": "pilula-ana",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "owner": "harlleydaana",
+    "sdkVersion": "50.0.0",
     "android": {
       "package": "com.harlley.pilulaana",
-      "versionCode": 1,
-      "permissions": [
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
-      ]
+      "versionCode": 2,
+      "permissions": ["VIBRATE","RECEIVE_BOOT_COMPLETED"]
     },
-    "plugins": [
-      "expo-notifications"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "4a6175cb-830a-423f-9470-3f206300c2f8"
-      }
-    }
+    "plugins": ["expo-notifications"]
   }
 }
