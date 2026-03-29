@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Alert, TextInput, Linking, Modal, Animated, Image, Platform,
-  FlatList, ActivityIndicator, Dimensions
+  FlatList, ActivityIndicator, Dimensions, PanResponder, StatusBar
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -65,6 +65,7 @@ Notifications.setNotificationHandler({
 export default function App() {
   // ── Auth & Pair state ───────────────────────────────────────────────────────
   const [tela, setTela] = useState("splash");
+  const [iniciando, setIniciando] = useState(true);
   const [authUser, setAuthUser]       = useState(null);   // Firebase Auth user
   const [perfil, setPerfil]           = useState(null);   // { nome, email, isAdmin, casalId, role }
   const [casalId, setCasalId]         = useState(null);
