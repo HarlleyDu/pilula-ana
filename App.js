@@ -19,13 +19,13 @@ import {
 
 // ─── Firebase Config ───────────────────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",   // ← substitua pelo seu
+  apiKey: "AIzaSyChpMCwE1A8Yl3Cm4Oyhc0bJoXBJLSbPuo",   // ← substitua pelo seu
   authDomain: "pilula-ana.firebaseapp.com",
   databaseURL: "https://pilula-ana-default-rtdb.firebaseio.com",
   projectId: "pilula-ana",
-  storageBucket: "pilula-ana.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:android:XXXXXXXXXXXXXXXX"
+  storageBucket: "pilula-ana.firebasestorage.app",
+  messagingSenderId: "1005101278287",
+  appId: "1:1005101278287:android:e749bbfad114aacbfd763a"
 };
 const firebaseApp = initializeApp(firebaseConfig);
 const db  = getDatabase(firebaseApp);
