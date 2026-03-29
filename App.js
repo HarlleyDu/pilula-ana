@@ -1,64 +1,117 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  Alert, TextInput, Linking, Modal, Animated
+} from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue, push } from 'firebase/database';
+import { getDatabase, ref, set, get, onValue, push } from 'firebase/database';
 
-const firebaseConfig = {
-  databaseURL: "https://pilula-ana-default-rtdb.firebaseio.com"
-};
+const firebaseConfig = { databaseURL: "https://pilula-ana-default-rtdb.firebaseio.com" };
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-const VERSAO_ATUAL = "1.0.4";
-const APK_URL = "https://expo.dev/artifacts/eas/i12FU9mKmSrhQefekHxeko.apk";
+const VERSAO_ATUAL = "2.0.0";
+const APK_URL = "https://expo.dev/artifacts/eas/tQvdjjarmdPHbrxsZMq821.apk";
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
 export default function App() {
+  const [tela, setTela] = useState('splash');
+  const [usuario, setUsuario] = useState(null);
+  const [modoAdmin, setModoAdmin] = useState(false);
   const [historico, setHistorico] = useState([]);
   const [tomouHoje, setTomouHoje] = useState(false);
-  const [temAtualizacao, setTemAtualizacao] = useState(false);
-
+  const [cartela, setCartela] = useState([]);
+  const [pausa, setPausa] = useState(null);
+  const [pontos, setPontos] = useState({ ana: 0, harlley: 0 });
+  const [atualizacao, setAtualizacao] = useState(null);
+  const [sugestao, setSugestao] = useState('');
+  const [abaAtiva, setAbaAtiva] = useState('home');
+  const [loginNome, setLoginNome] = useState('');
+  const [loginSenha, setLoginSenha] = useState('');
+  const [modalAmor, setModalAmor] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const hoje = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    configurarAlarmes();
-    carregarHistorico();
     checarAtualizacao();
   }, []);
-
-  function carregarHistorico() {
-    const dbRef = ref(db, 'historico');
-    onValue(dbRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const lista = Object.values(data).sort((a, b) => b.data.localeCompare(a.data));
-        setHistorico(lista);
-        setTomouHoje(lista.some(h => h.data === hoje));
-      } else {
-        setHistorico([]);
-        setTomouHoje(false);
-      }
-    });
-  }
 
   async function checarAtualizacao() {
     try {
       const res = await fetch('https://raw.githubusercontent.com/HarlleyDu/pilula-ana/master/versao.json');
       const json = await res.json();
       if (json.versao !== VERSAO_ATUAL) {
-        setTemAtualizacao(true);
+        setAtualizacao(json);
+        setTela('atualizar');
+      } else {
+        setTela('login');
       }
-    } catch(e) {}
+    } catch(e) {
+      setTela('login');
+    }
+  }
+
+  function fazerLogin() {
+    const nome = loginNome.trim().toLowerCase();
+    const senha = loginSenha.trim();
+    if (nome === 'ana' && senha === 'ana123') {
+      setUsuario('ana');
+      setModoAdmin(false);
+      iniciarApp('ana');
+      setTela('app');
+    } else if (nome === 'harlley' && senha === 'harl123') {
+      setUsuario('harlley');
+      setModoAdmin(true);
+      iniciarApp('harlley');
+      setTela('app');
+    } else {
+      Alert.alert('Erro', 'Nome ou senha incorretos!');
+    }
+  }
+
+  function iniciarApp(user) {
+    carregarHistorico();
+    carregarCartela();
+    carregarPausa();
+    carregarPontos();
+    configurarAlarmes();
+  }
+
+  function carregarHistorico() {
+    onValue(ref(db, 'historico'), (snap) => {
+      const data = snap.val();
+      if (data) {
+        const lista = Object.values(data).sort((a, b) => b.data.localeCompare(a.data));
+        setHistorico(lista);
+        setTomouHoje(lista.some(h => h.data === hoje));
+      }
+    });
+  }
+
+  function carregarCartela() {
+    onValue(ref(db, 'cartela'), (snap) => {
+      const data = snap.val();
+      if (data) setCartela(data);
+      else setCartela(Array(28).fill(false));
+    });
+  }
+
+  function carregarPausa() {
+    onValue(ref(db, 'pausa'), (snap) => {
+      setPausa(snap.val());
+    });
+  }
+
+  function carregarPontos() {
+    onValue(ref(db, 'pontos'), (snap) => {
+      const data = snap.val();
+      if (data) setPontos(data);
+    });
   }
 
   async function configurarAlarmes() {
@@ -66,84 +119,352 @@ export default function App() {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') return;
     await Notifications.cancelAllScheduledNotificationsAsync();
-
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Hora da pilula!',
-        body: 'Ana, nao esqueca de tomar a pilula hoje',
-        sound: true,
-      },
+      content: { title: 'Hora da pilula!', body: 'Ana, nao esqueca de tomar o Yazflex hoje', sound: true },
       trigger: { hour: 20, minute: 30, repeats: true },
     });
-
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Ana ainda nao tomou!',
-        body: 'Ela ainda nao registrou a pilula de hoje. Lembra ela!',
-        sound: true,
-      },
+      content: { title: 'Ana ainda nao tomou!', body: 'Ela ainda nao registrou a pilula de hoje. Lembra ela!', sound: true },
       trigger: { hour: 20, minute: 40, repeats: true },
     });
   }
 
-  async function marcarTomou() {
+  async function marcarTomou(simular) {
     const d = new Date();
     const hora = d.toTimeString().slice(0, 5);
-    const dbRef = ref(db, 'historico/' + hoje);
-    await set(dbRef, { data: hoje, hora, tomou: true });
-    Alert.alert('Otimo!', 'Registrado! Continue assim');
+    const minutos = d.getHours() * 60 + d.getMinutes();
+    const dentroDaJanela = minutos >= 20 * 60 + 30 && minutos <= 20 * 60 + 40;
+
+    await set(ref(db, 'historico/' + hoje), { data: hoje, hora, tomou: true });
+
+    const novosPontos = { ...pontos };
+    if (dentroDaJanela) {
+      novosPontos.ana = (novosPontos.ana || 0) + 1;
+    } else {
+      novosPontos.harlley = (novosPontos.harlley || 0) + 1;
+    }
+    await set(ref(db, 'pontos'), novosPontos);
+
+    const novaCartela = [...cartela];
+    const diaAtual = historico.length % 28;
+    novaCartela[diaAtual] = true;
+    await set(ref(db, 'cartela'), novaCartela);
+
+    if (!simular) {
+      setModalAmor(true);
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.delay(2500),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start(() => setModalAmor(false));
+    }
   }
 
-  return (
-    <ScrollView style={s.bg} contentContainerStyle={s.c}>
-      <Text style={s.title}>Pilula da Ana</Text>
-      <Text style={s.sub}>Alarme todo dia as 20:30</Text>
+  async function iniciarPausa() {
+    const inicio = new Date().toISOString().slice(0, 10);
+    const fim = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await set(ref(db, 'pausa'), { inicio, fim, ativa: true });
+    await set(ref(db, 'cartela'), Array(28).fill(false));
+    Alert.alert('Pausa iniciada!', 'Pausa de 4 dias iniciada. Nova cartela começa em ' + fim);
+  }
 
-      {temAtualizacao && (
-        <TouchableOpacity style={s.update} onPress={() => Linking.openURL(APK_URL)}>
-          <Text style={s.updateTxt}>Nova versao disponivel! Toque para baixar</Text>
+  async function enviarSugestao() {
+    if (!sugestao.trim()) return;
+    await push(ref(db, 'sugestoes'), {
+      texto: sugestao,
+      data: new Date().toISOString(),
+      usuario: usuario,
+    });
+    setSugestao('');
+    Alert.alert('Enviado!', 'Sua sugestao foi registrada e enviada para o Harlley!');
+  }
+
+  const diasPausa = () => {
+    if (!pausa || !pausa.ativa) return null;
+    const fim = new Date(pausa.fim);
+    const agora = new Date();
+    const diff = Math.ceil((fim - agora) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? diff : null;
+  };
+
+  if (tela === 'splash') {
+    return (
+      <View style={s.splash}>
+        <Text style={s.splashEmoji}>💊</Text>
+        <Text style={s.splashTitle}>Pilula da Ana</Text>
+        <Text style={s.splashSub}>Carregando...</Text>
+      </View>
+    );
+  }
+
+  if (tela === 'atualizar') {
+    return (
+      <View style={s.splash}>
+        <Text style={s.splashEmoji}>🔄</Text>
+        <Text style={s.splashTitle}>Nova versao disponivel!</Text>
+        {atualizacao?.notas?.map((n, i) => (
+          <Text key={i} style={s.notaItem}>• {n}</Text>
+        ))}
+        <TouchableOpacity style={s.btnUpdate} onPress={() => Linking.openURL(APK_URL)}>
+          <Text style={s.btnUpdateTxt}>Baixar atualização agora</Text>
         </TouchableOpacity>
-      )}
+      </View>
+    );
+  }
 
-      <View style={tomouHoje ? s.cardOk : s.cardNo}>
-        <Text style={s.emoji}>{tomouHoje ? 'OK' : '!'}</Text>
-        <Text style={s.cardTxt}>{tomouHoje ? 'Tomou hoje!' : 'Nao registrou ainda'}</Text>
+  if (tela === 'login') {
+    return (
+      <View style={s.loginWrap}>
+        <Text style={s.loginEmoji}>💊</Text>
+        <Text style={s.loginTitle}>Pilula da Ana</Text>
+        <Text style={s.loginSub}>Entre na sua conta</Text>
+        <TextInput
+          style={s.input}
+          placeholder="Seu nome (Ana ou Harlley)"
+          placeholderTextColor="#555"
+          value={loginNome}
+          onChangeText={setLoginNome}
+          autoCapitalize="none"
+        />
+        <TextInput
+          style={s.input}
+          placeholder="Senha"
+          placeholderTextColor="#555"
+          value={loginSenha}
+          onChangeText={setLoginSenha}
+          secureTextEntry
+        />
+        <TouchableOpacity style={s.btnLogin} onPress={fazerLogin}>
+          <Text style={s.btnLoginTxt}>Entrar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const pausaDias = diasPausa();
+
+  return (
+    <View style={s.root}>
+      <Modal transparent visible={modalAmor} animationType="none">
+        <Animated.View style={[s.modalAmor, { opacity: fadeAnim }]}>
+          <Text style={s.modalAmorEmoji}>💕</Text>
+          <Text style={s.modalAmorTxt}>Eu te amo amor</Text>
+        </Animated.View>
+      </Modal>
+
+      <View style={s.header}>
+        <View>
+          <Text style={s.headerTitle}>Pilula da Ana</Text>
+          <Text style={s.headerSub}>{usuario === 'ana' ? 'Ola, Ana!' : modoAdmin ? 'Modo Admin' : 'Ola, Harlley!'}</Text>
+        </View>
+        {usuario === 'harlley' && (
+          <TouchableOpacity style={modoAdmin ? s.badgeAdmin : s.badgeUser} onPress={() => setModoAdmin(!modoAdmin)}>
+            <Text style={s.badgeTxt}>{modoAdmin ? '👑 ADM' : '👤 User'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {!tomouHoje && (
-        <TouchableOpacity style={s.btn} onPress={marcarTomou}>
-          <Text style={s.btnTxt}>Marcar que tomou agora</Text>
-        </TouchableOpacity>
-      )}
+      <View style={s.abas}>
+        {['home','cartela','ranking','sugestoes'].map(aba => (
+          <TouchableOpacity key={aba} style={[s.aba, abaAtiva === aba && s.abaAtiva]} onPress={() => setAbaAtiva(aba)}>
+            <Text style={[s.abaTxt, abaAtiva === aba && s.abaTxtAtiva]}>
+              {aba === 'home' ? '🏠' : aba === 'cartela' ? '💊' : aba === 'ranking' ? '🏆' : '💡'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      <Text style={s.secLbl}>Historico</Text>
-      {historico.length === 0 && <Text style={s.empty}>Nenhum registro ainda</Text>}
-      {historico.map((h, i) => (
-        <View key={i} style={s.row}>
-          <Text style={s.rowData}>{h.data}</Text>
-          <Text style={s.rowHora}>{h.hora}</Text>
-        </View>
-      ))}
-    </ScrollView>
+      <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
+
+        {abaAtiva === 'home' && (
+          <>
+            {pausaDias ? (
+              <View style={s.pausaCard}>
+                <Text style={s.pausaEmoji}>⏸️</Text>
+                <Text style={s.pausaTxt}>Pausa ativa — {pausaDias} dias restantes</Text>
+                <Text style={s.pausaSub}>Nova cartela começa em {pausa?.fim}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={tomouHoje ? s.cardOk : s.cardNo}>
+                  <Text style={s.cardEmoji}>{tomouHoje ? '✅' : '⏰'}</Text>
+                  <Text style={s.cardTxt}>{tomouHoje ? 'Tomou hoje!' : 'Ainda nao registrou hoje'}</Text>
+                  <Text style={s.cardHora}>Lembrete as 20:30</Text>
+                </View>
+
+                {!tomouHoje && (
+                  <TouchableOpacity style={s.btnTomar} onPress={() => marcarTomou(false)}>
+                    <Text style={s.btnTomarTxt}>💊 Marcar que tomou agora</Text>
+                  </TouchableOpacity>
+                )}
+
+                {modoAdmin && !tomouHoje && (
+                  <TouchableOpacity style={s.btnSimular} onPress={() => marcarTomou(true)}>
+                    <Text style={s.btnSimularTxt}>🧪 Simular que Ana tomou (teste)</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            {usuario === 'ana' && !pausaDias && historico.length > 0 && historico.length % 28 === 0 && (
+              <TouchableOpacity style={s.btnPausa} onPress={iniciarPausa}>
+                <Text style={s.btnPausaTxt}>⏸️ Iniciar pausa de 4 dias</Text>
+              </TouchableOpacity>
+            )}
+
+            {modoAdmin && (
+              <TouchableOpacity style={s.btnPausa} onPress={iniciarPausa}>
+                <Text style={s.btnPausaTxt}>⏸️ Forçar pausa (admin)</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={s.secLabel}>📋 Historico</Text>
+            {historico.length === 0 && <Text style={s.empty}>Nenhum registro ainda</Text>}
+            {historico.slice(0, 10).map((h, i) => (
+              <View key={i} style={s.histRow}>
+                <Text style={s.histData}>{h.data}</Text>
+                <Text style={s.histHora}>✅ {h.hora}</Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        {abaAtiva === 'cartela' && (
+          <>
+            <Text style={s.secLabel}>💊 Cartela Yazflex — 28 dias</Text>
+            <Text style={s.cartelaSub}>Tome 1 comprimido por dia, sempre no mesmo horario</Text>
+            <View style={s.cartelaGrid}>
+              {Array(28).fill(null).map((_, i) => (
+                <View key={i} style={[s.pilula, cartela[i] && s.pilulaOk]}>
+                  <Text style={s.pilulaTxt}>{i + 1}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={s.infoCard}>
+              <Text style={s.infoTxt}>📌 Apos 28 comprimidos, faca 4 dias de pausa</Text>
+              <Text style={s.infoTxt}>📌 Na pausa pode ocorrer sangramento</Text>
+              <Text style={s.infoTxt}>📌 Apos a pausa, inicie nova cartela</Text>
+            </View>
+          </>
+        )}
+
+        {abaAtiva === 'ranking' && (
+          <>
+            <Text style={s.secLabel}>🏆 Ranking de pontos</Text>
+            <Text style={s.rankSub}>Ana ganha ponto tomando entre 20:30 e 20:40{'\n'}Harlley ganha ponto fora desse horario</Text>
+            <View style={s.rankCard}>
+              <Text style={s.rankEmoji}>💃</Text>
+              <Text style={s.rankNome}>Ana</Text>
+              <Text style={s.rankPontos}>{pontos.ana || 0} pts</Text>
+              {(pontos.ana || 0) >= (pontos.harlley || 0) && <Text style={s.rankCoroa}>👑</Text>}
+            </View>
+            <View style={[s.rankCard, { marginTop: 12 }]}>
+              <Text style={s.rankEmoji}>🧢</Text>
+              <Text style={s.rankNome}>Harlley</Text>
+              <Text style={s.rankPontos}>{pontos.harlley || 0} pts</Text>
+              {(pontos.harlley || 0) > (pontos.ana || 0) && <Text style={s.rankCoroa}>👑</Text>}
+            </View>
+          </>
+        )}
+
+        {abaAtiva === 'sugestoes' && (
+          <>
+            <Text style={s.secLabel}>💡 Sugerir melhoria</Text>
+            <Text style={s.sugestaoSub}>Sua ideia vai direto pro Harlley avaliar!</Text>
+            <TextInput
+              style={s.textArea}
+              placeholder="Escreva sua sugestao aqui..."
+              placeholderTextColor="#444"
+              value={sugestao}
+              onChangeText={setSugestao}
+              multiline
+              numberOfLines={5}
+            />
+            <TouchableOpacity style={s.btnEnviar} onPress={enviarSugestao}>
+              <Text style={s.btnEnviarTxt}>📨 Enviar sugestao</Text>
+            </TouchableOpacity>
+
+            {modoAdmin && (
+              <>
+                <Text style={[s.secLabel, { marginTop: 24 }]}>📬 Sugestoes recebidas</Text>
+                <Text style={s.sugestaoSub}>Veja no Firebase: pilula-ana/sugestoes</Text>
+              </>
+            )}
+          </>
+        )}
+
+      </ScrollView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  bg:{flex:1,backgroundColor:'#0c0c0f'},
-  c:{padding:24,paddingTop:60},
-  title:{fontSize:26,fontWeight:'800',color:'#fff',textAlign:'center'},
-  sub:{fontSize:13,color:'#555',textAlign:'center',marginTop:6,marginBottom:16},
-  update:{backgroundColor:'#ff2d78',borderRadius:12,padding:14,alignItems:'center',marginBottom:16},
-  updateTxt:{color:'#fff',fontWeight:'800',fontSize:13},
-  cardOk:{backgroundColor:'#0d2e1a',borderRadius:16,padding:24,alignItems:'center',borderWidth:1,borderColor:'#00ff87'},
-  cardNo:{backgroundColor:'#1a1a0d',borderRadius:16,padding:24,alignItems:'center',borderWidth:1,borderColor:'#ffd60a'},
-  emoji:{fontSize:36,marginBottom:10,color:'#fff'},
-  cardTxt:{fontSize:16,fontWeight:'700',color:'#fff',textAlign:'center'},
-  btn:{backgroundColor:'#00ff87',borderRadius:14,padding:18,alignItems:'center',marginTop:20},
-  btnTxt:{fontSize:16,fontWeight:'800',color:'#000'},
-  secLbl:{fontSize:13,fontWeight:'700',color:'#555',marginTop:32,marginBottom:12},
-  empty:{color:'#333',fontSize:13,textAlign:'center'},
-  row:{flexDirection:'row',justifyContent:'space-between',backgroundColor:'#13131a',borderRadius:10,padding:14,marginBottom:8},
-  rowData:{color:'#aaa',fontSize:13},
-  rowHora:{color:'#00ff87',fontSize:13,fontWeight:'700'},
+  root: { flex: 1, backgroundColor: '#0a0010' },
+  splash: { flex: 1, backgroundColor: '#0a0010', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  splashEmoji: { fontSize: 64, marginBottom: 16 },
+  splashTitle: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 8 },
+  splashSub: { fontSize: 14, color: '#666' },
+  notaItem: { fontSize: 13, color: '#aaa', marginTop: 6, alignSelf: 'flex-start' },
+  btnUpdate: { backgroundColor: '#ff2d78', borderRadius: 14, padding: 18, marginTop: 32, width: '100%', alignItems: 'center' },
+  btnUpdateTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  loginWrap: { flex: 1, backgroundColor: '#0a0010', padding: 28, justifyContent: 'center' },
+  loginEmoji: { fontSize: 56, textAlign: 'center', marginBottom: 12 },
+  loginTitle: { fontSize: 28, fontWeight: '800', color: '#fff', textAlign: 'center', marginBottom: 4 },
+  loginSub: { fontSize: 14, color: '#555', textAlign: 'center', marginBottom: 32 },
+  input: { backgroundColor: '#1a1a2e', borderRadius: 12, padding: 16, color: '#fff', fontSize: 15, marginBottom: 12, borderWidth: 1, borderColor: '#2a2a4a' },
+  btnLogin: { backgroundColor: '#ff2d78', borderRadius: 14, padding: 18, alignItems: 'center', marginTop: 8 },
+  btnLoginTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  header: { backgroundColor: '#130020', padding: 20, paddingTop: 50, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#2a1040' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  headerSub: { fontSize: 12, color: '#aa88cc', marginTop: 2 },
+  badgeAdmin: { backgroundColor: '#ff2d78', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  badgeUser: { backgroundColor: '#2a2a4a', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  badgeTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  abas: { flexDirection: 'row', backgroundColor: '#130020', borderBottomWidth: 1, borderBottomColor: '#2a1040' },
+  aba: { flex: 1, padding: 14, alignItems: 'center' },
+  abaAtiva: { borderBottomWidth: 2, borderBottomColor: '#ff2d78' },
+  abaTxt: { fontSize: 20 },
+  abaTxtAtiva: { opacity: 1 },
+  body: { flex: 1 },
+  bodyContent: { padding: 20, paddingBottom: 40 },
+  cardOk: { backgroundColor: '#0d2e1a', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#00ff87', marginBottom: 16 },
+  cardNo: { backgroundColor: '#1a0d20', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#ff2d78', marginBottom: 16 },
+  cardEmoji: { fontSize: 40, marginBottom: 8 },
+  cardTxt: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  cardHora: { fontSize: 12, color: '#666', marginTop: 4 },
+  btnTomar: { backgroundColor: '#ff2d78', borderRadius: 14, padding: 18, alignItems: 'center', marginBottom: 12 },
+  btnTomarTxt: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  btnSimular: { backgroundColor: '#2a2a4a', borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#4a4a8a' },
+  btnSimularTxt: { color: '#aaa', fontWeight: '700', fontSize: 14 },
+  btnPausa: { backgroundColor: '#1a1a3a', borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: '#4a4a8a' },
+  btnPausaTxt: { color: '#aaa', fontWeight: '700', fontSize: 14 },
+  pausaCard: { backgroundColor: '#1a1a0d', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#ffd60a', marginBottom: 16 },
+  pausaEmoji: { fontSize: 40, marginBottom: 8 },
+  pausaTxt: { fontSize: 16, fontWeight: '800', color: '#ffd60a' },
+  pausaSub: { fontSize: 12, color: '#888', marginTop: 4 },
+  secLabel: { fontSize: 12, fontWeight: '800', color: '#666', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12, marginTop: 8 },
+  empty: { color: '#333', fontSize: 13, textAlign: 'center', marginTop: 16 },
+  histRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#13131a', borderRadius: 10, padding: 14, marginBottom: 8 },
+  histData: { color: '#aaa', fontSize: 13 },
+  histHora: { color: '#00ff87', fontSize: 13, fontWeight: '700' },
+  cartelaSub: { fontSize: 13, color: '#666', marginBottom: 16 },
+  cartelaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  pilula: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1a1a2e', borderWidth: 1, borderColor: '#2a2a4a', alignItems: 'center', justifyContent: 'center' },
+  pilulaOk: { backgroundColor: '#0d2e1a', borderColor: '#00ff87' },
+  pilulaTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  infoCard: { backgroundColor: '#1a0d20', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#2a1040' },
+  infoTxt: { color: '#aa88cc', fontSize: 13, marginBottom: 6 },
+  rankSub: { fontSize: 13, color: '#666', marginBottom: 16, lineHeight: 20 },
+  rankCard: { backgroundColor: '#1a0d20', borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#2a1040' },
+  rankEmoji: { fontSize: 32, marginRight: 16 },
+  rankNome: { fontSize: 18, fontWeight: '800', color: '#fff', flex: 1 },
+  rankPontos: { fontSize: 22, fontWeight: '800', color: '#ff2d78' },
+  rankCoroa: { fontSize: 24, marginLeft: 8 },
+  sugestaoSub: { fontSize: 13, color: '#666', marginBottom: 16 },
+  textArea: { backgroundColor: '#1a1a2e', borderRadius: 12, padding: 16, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#2a2a4a', minHeight: 120, textAlignVertical: 'top', marginBottom: 12 },
+  btnEnviar: { backgroundColor: '#7b2fff', borderRadius: 14, padding: 16, alignItems: 'center' },
+  btnEnviarTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  modalAmor: { flex: 1, backgroundColor: 'rgba(255,45,120,0.95)', alignItems: 'center', justifyContent: 'center' },
+  modalAmorEmoji: { fontSize: 80, marginBottom: 20 },
+  modalAmorTxt: { fontSize: 32, fontWeight: '800', color: '#fff' },
 });

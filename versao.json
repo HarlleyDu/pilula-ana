@@ -1,1 +1,14 @@
-{"versao": "1.0.4"}
+{
+  "versao": "2.0.0",
+  "notas": [
+    "Interface completamente nova e profissional",
+    "Login com contas Ana e Harlley",
+    "Cartela visual do Yazflex com 30 dias",
+    "Sistema de pausa de 4 dias",
+    "Ranking de pontos entre voces dois",
+    "Modo administrador para Harlley",
+    "Sugestoes de melhoria por email",
+    "Mensagem especial ao marcar que tomou",
+    "Atualizacao obrigatoria antes de usar"
+  ]
+}
