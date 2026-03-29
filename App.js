@@ -33,7 +33,7 @@ const auth = getAuth(firebaseApp);
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const VERSAO_ATUAL = "3.0.0";
-const APK_URL      = "https://expo.dev/artifacts/eas/eiEe2xkXpd7EZZ56HpKU4G.apk";
+const APK_URL      = "https://github.com/HarlleyDu/pilula-ana/releases/latest/download/pilula-ana.apk";
 const ADMIN_EMAIL  = "Harlleyduarte@gmail.com";
 const { width: SW } = Dimensions.get('window');
 
