@@ -1,1 +1,1 @@
-{"versao":"3.4.1","notas":["Login com email e senha","Sistema de dupla com chave","Foto da galeria","Calendario com faltas e pausas","Nome do usuario no header"]}
+{"versao":"5.0.0","notas":["Correção crítica do crash ao abrir (linha 68)","Melhoria na estabilidade do carregamento do Firebase","Sincronização de temas aprimorada","Versão Master Plan v5.0 implementada"]}
