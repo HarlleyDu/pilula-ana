@@ -1,1 +1,11 @@
-{"versao":"3.3.10","notas":["Login com email e senha","Sistema de dupla com chave","Foto da galeria","Calendario com faltas e pausas","Nome do usuario no header"]}
+{
+  "versao": "3.4.0",
+  "notas": [
+    "Login com Firebase Auth",
+    "Sistema de dupla com chave",
+    "Calendario com faltas e pausas",
+    "Admin pode editar qualquer dia",
+    "Temas de cores",
+    "Confete ao completar cartela"
+  ]
+}
