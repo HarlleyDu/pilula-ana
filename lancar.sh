@@ -1,14 +1,23 @@
 #!/bin/bash
 cd ~/pilula-ana
 
-echo "Nova versao (ex: 3.3.0):"
-read VERSAO
+TOKEN=$(cat ~/.github_token)
+
+# Versao automatica
+ATUAL=$(cat versao.json | python3 -c "import sys,json; print(json.load(sys.stdin)['versao'])")
+MAJOR=$(echo $ATUAL | cut -d. -f1)
+MINOR=$(echo $ATUAL | cut -d. -f2)
+PATCH=$(echo $ATUAL | cut -d. -f3)
+PATCH=$((PATCH+1))
+VERSAO="$MAJOR.$MINOR.$PATCH"
+
+echo "Lancando versao $VERSAO automaticamente..."
 
 echo "{\"versao\":\"$VERSAO\",\"notas\":[\"Login com email e senha\",\"Sistema de dupla com chave\",\"Foto da galeria\",\"Calendario com faltas e pausas\",\"Nome do usuario no header\"]}" > versao.json
 
-git add .
+git add versao.json assets/
 git commit -m "v$VERSAO"
-git push https://HarlleyDu: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@github.com/HarlleyDu/pilula-ana.git master
+git push https://HarlleyDu:$TOKEN@github.com/HarlleyDu/pilula-ana.git master
 
 echo "Gerando APK..."
 eas build --platform android --profile preview --non-interactive
@@ -24,8 +33,8 @@ echo "Baixando APK..."
 curl -L -o ~/pilula-ana.apk "$APK_URL"
 
 echo "Publicando no GitHub..."
-GITHUB_TOKEN=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 gh release delete "v$VERSAO" --yes 2>/dev/null
-GITHUB_TOKEN=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 gh release create "v$VERSAO" ~/pilula-ana.apk --title "v$VERSAO" --notes "Versao $VERSAO" --repo HarlleyDu/pilula-ana
+GITHUB_TOKEN=$TOKEN gh release delete "v$VERSAO" --yes 2>/dev/null
+GITHUB_TOKEN=$TOKEN gh release create "v$VERSAO" ~/pilula-ana.apk --title "v$VERSAO" --notes "Versao $VERSAO" --repo HarlleyDu/pilula-ana
 
 rm ~/pilula-ana.apk
 echo ""

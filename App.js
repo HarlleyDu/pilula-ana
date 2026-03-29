@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Alert, TextInput, Linking, Modal, Animated, Image, Platform,
   FlatList, ActivityIndicator, Dimensions
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { initializeApp } from 'firebase/app';
 import {
   getDatabase, ref, set, get, onValue, push, remove, off
 } from 'firebase/database';
-import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signOut, onAuthStateChanged, updateProfile
 } from 'firebase/auth';
 
@@ -32,7 +28,7 @@ const db  = getDatabase(firebaseApp);
 const auth = getAuth(firebaseApp);
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const VERSAO_ATUAL = "3.0.0";
+const VERSAO_ATUAL = "3.3.6";
 const APK_URL      = "https://github.com/HarlleyDu/pilula-ana/releases/latest/download/pilula-ana.apk";
 const ADMIN_EMAIL  = "Harlleyduarte@gmail.com";
 const { width: SW } = Dimensions.get('window');
@@ -68,7 +64,8 @@ Notifications.setNotificationHandler({
 // ══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   // ── Auth & Pair state ───────────────────────────────────────────────────────
-  const [tela, setTela]               = useState('splash');
+  const [tela, setTela] = useState("splash");
+  const [iniciando, setIniciando] = useState(true');
   const [authUser, setAuthUser]       = useState(null);   // Firebase Auth user
   const [perfil, setPerfil]           = useState(null);   // { nome, email, isAdmin, casalId, role }
   const [casalId, setCasalId]         = useState(null);
@@ -126,6 +123,26 @@ export default function App() {
   const [confete, setConfete] = useState(false);
   const confeteCores = ['#ff2d78','#ffd60a','#00ff87','#00e5ff','#7b2fff','#ff9500','#ff6b6b','#4ecdc4'];
 
+
+  const ABAS = ['home','calendario','ranking','sugestoes','perfil'];
+
+  function swipeAba(direcao) {
+    const idx = ABAS.indexOf(abaAtiva);
+    if (direcao === 'esq' && idx < ABAS.length - 1) setAbaAtiva(ABAS[idx + 1]);
+    if (direcao === 'dir' && idx > 0) setAbaAtiva(ABAS[idx - 1]);
+  }
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < -50) swipeAba('esq');
+        if (g.dx > 50) swipeAba('dir');
+      },
+    })
+  ).current;
+
   const hoje = todayKey();
   const isAdmin = perfil?.isAdmin === true;
   const s = makeStyles(tema);
@@ -139,6 +156,7 @@ export default function App() {
   useEffect(() => {
     checarAtualizacao();
     const unsub = onAuthStateChanged(auth, async (user) => {
+      setIniciando(false);
       if (user) {
         setAuthUser(user);
         await carregarPerfil(user.uid);
@@ -146,7 +164,7 @@ export default function App() {
         setAuthUser(null);
         setPerfil(null);
         setCasalId(null);
-        setTela('auth');
+        setTela('auth'); setIniciando(false);
       }
     });
     return () => unsub();
@@ -481,19 +499,18 @@ export default function App() {
   }
 
   // ── Foto da galeria ─────────────────────────────────────────────────────────
+  const [modalFotoUrl, setModalFotoUrl] = useState(false);
+  const [urlFotoTemp, setUrlFotoTemp] = useState('');
+
   async function escolherFoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permissão negada', 'Precisamos acessar sua galeria.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1,1], quality: 0.6, base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const base64 = result.assets[0].base64;
-      const uid = authUser.uid;
-      // Salvar base64 no Firebase (para fotos pequenas)
-      await set(ref(db, `casais/${casalId}/fotos/${uid}`), `data:image/jpeg;base64,${base64}`);
-    }
+    setModalFotoUrl(true);
+  }
+
+  async function salvarFotoUrl() {
+    if (!urlFotoTemp.trim()) return;
+    await set(ref(db, `casais/${casalId}/fotos/${authUser.uid}`), urlFotoTemp.trim());
+    setUrlFotoTemp('');
+    setModalFotoUrl(false);
   }
 
   // ── Email sugestão ──────────────────────────────────────────────────────────
@@ -688,6 +705,25 @@ export default function App() {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={false} />
+
+      {/* Modal foto URL */}
+      <Modal transparent visible={modalFotoUrl} animationType="slide">
+        <View style={s.modalWrap}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitulo}>📷 URL da foto</Text>
+            <Text style={s.modalSub}>Cole um link direto de imagem (Imgur, etc)</Text>
+            <TextInput style={s.input} placeholder="https://..." placeholderTextColor="#555"
+              value={urlFotoTemp} onChangeText={setUrlFotoTemp} autoCapitalize="none" />
+            <TouchableOpacity style={s.btnPrimary} onPress={salvarFotoUrl}>
+              <Text style={s.btnPrimaryTxt}>✅ Salvar foto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.btnSecondary} onPress={() => setModalFotoUrl(false)}>
+              <Text style={s.btnSecondaryTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal amor */}
       <Modal transparent visible={modalAmor} animationType="none">
@@ -898,7 +934,7 @@ export default function App() {
         ))}
       </View>
 
-      <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
+      <ScrollView style={s.body} contentContainerStyle={s.bodyContent} {...panResponder.panHandlers}>
 
         {/* ── HOME ── */}
         {abaAtiva === 'home' && <>
