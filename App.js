@@ -34,7 +34,7 @@ try {
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const VERSAO_ATUAL = "5.0.1";
+const VERSAO_ATUAL = "5.0.2";
 const APK_URL      = "https://github.com/HarlleyDu/pilula-ana/releases/latest/download/pilula-ana.apk";
 const ADMIN_EMAIL  = "Harlleyduarte@gmail.com";
 const { width: SW } = Dimensions.get('window');
@@ -382,9 +382,9 @@ export default function App() {
       const hora = d.toTimeString().slice(0,5);
       const minutos = d.getHours()*60 + d.getMinutes();
       const dentroDaJanela = minutos >= 20*60+30 && minutos <= 20*60+40;
-      
+
       await set(ref(db, `casais/${casalId}/historico/${hoje}`), { data:hoje, hora, tomou:true });
-      
+
       const np = { ...pontos };
       const pNome = (perfil?.nome || '').toLowerCase().includes('harlley') ? 'harlley' : 'ana';
       if (dentroDaJanela) np.ana = (np.ana||0)+1;
@@ -434,6 +434,11 @@ export default function App() {
     try {
       await set(ref(db, `casais/${casalId}/pausa/ativa`), false);
     } catch(e) {}
+  }
+
+  // ── ✅ CORREÇÃO: função escolherFoto que estava faltando ────────────────────
+  async function escolherFoto() {
+    setModalFotoUrl(true);
   }
 
   async function salvarFotoUrl() {
@@ -518,7 +523,7 @@ export default function App() {
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent={false} />
-      
+
       {/* Modals */}
       <Modal transparent visible={modalAmor} animationType="none">
         <Animated.View style={[s.modalAmor, { opacity: fadeAmor }]}>
@@ -636,10 +641,25 @@ export default function App() {
           <View style={s.rankCard}><Text style={s.rankNome}>Harlley</Text><Text style={s.rankPts}>{pontos.harlley || 0} pts</Text></View>
         </>}
 
+        {abaAtiva === 'sugestoes' && <>
+          <Text style={s.secLabel}>💡 Sugestões</Text>
+          <TextInput
+            style={[s.input, { height: 100, textAlignVertical: 'top' }]}
+            placeholder="Escreva uma sugestão..."
+            placeholderTextColor="#555"
+            value={sugestao}
+            onChangeText={setSugestao}
+            multiline
+          />
+          <TouchableOpacity style={s.btnPrimary} onPress={enviarSugestao}>
+            <Text style={s.btnPrimaryTxt}>📤 Enviar</Text>
+          </TouchableOpacity>
+        </>}
+
         {abaAtiva === 'perfil' && <>
           <View style={s.perfilCard}>
             <TouchableOpacity onPress={escolherFoto}>
-              {fotoAtual ? <Image source={{uri:fotoAtual}} style={s.fotoPerfil}/> : <View style={s.fotoPerfilVazio}><Text>📷</Text></View>}
+              {fotoAtual ? <Image source={{uri:fotoAtual}} style={s.fotoPerfil}/> : <View style={s.fotoPerfilVazio}><Text style={{ fontSize: 40 }}>📷</Text></View>}
             </TouchableOpacity>
             <Text style={s.perfilNome}>{nomeAtual}</Text>
             <Text style={s.perfilVersao}>v{VERSAO_ATUAL}</Text>
@@ -660,11 +680,13 @@ const makeStyles = (tema) => StyleSheet.create({
   authSub: { fontSize:14, color:'#555', textAlign:'center', marginBottom:28 },
   authSwitch: { color:'#7b2fff', textAlign:'center', marginTop:16 },
   input: { backgroundColor:tema.card, borderRadius:12, padding:16, color:tema.text, marginBottom:12, borderWidth:1, borderColor:tema.border },
-  btnPrimary: { backgroundColor:tema.primary, borderRadius:16, padding:18, alignItems:'center' },
+  inputChave: { textAlign:'center', fontSize:24, fontWeight:'800', letterSpacing:6 },
+  btnPrimary: { backgroundColor:tema.primary, borderRadius:16, padding:18, alignItems:'center', marginBottom:12 },
   btnPrimaryTxt: { color:'#fff', fontWeight:'800' },
   btnSecondary: { padding:12, alignItems:'center', marginTop:8 },
   btnSecondaryTxt: { color:tema.sub },
-  header: { flexDirection:'row', justifyContent:'space-between', padding:20, paddingTop:50, backgroundColor:tema.card },
+  header: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:20, paddingTop:50, backgroundColor:tema.card },
+  headerLeft: { flexDirection:'row', alignItems:'center' },
   headerTitle: { color:'#fff', fontWeight:'800', fontSize:18 },
   headerSub: { color:tema.sub, fontSize:12 },
   avatarHeader: { width:40, height:40, borderRadius:20 },
@@ -678,6 +700,7 @@ const makeStyles = (tema) => StyleSheet.create({
   card: { backgroundColor:tema.card, borderRadius:24, padding:30, alignItems:'center', borderWidth:2, marginBottom:20 },
   cardTitulo: { fontSize:22, fontWeight:'900', color:'#fff', marginTop:10 },
   cardSub: { color:tema.sub, marginTop:5 },
+  secLabel: { color:'#fff', fontSize:18, fontWeight:'800', marginBottom:16 },
   calHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:20 },
   calTitulo: { color:'#fff', fontSize:18, fontWeight:'800' },
   calNav: { color:tema.primary, fontSize:30, paddingHorizontal:20 },
@@ -694,7 +717,7 @@ const makeStyles = (tema) => StyleSheet.create({
   fotoPerfil: { width:100, height:100, borderRadius:50, borderWidth:3, borderColor:tema.primary },
   fotoPerfilVazio: { width:100, height:100, borderRadius:50, backgroundColor:'#333', alignItems:'center', justifyContent:'center' },
   perfilNome: { color:'#fff', fontSize:22, fontWeight:'800', marginTop:15 },
-  perfilVersao: { color:tema.sub, fontSize:12, marginTop:5 },
+  perfilVersao: { color:tema.sub, fontSize:12, marginTop:5, marginBottom:20 },
   modalWrap: { flex:1, backgroundColor:'rgba(0,0,0,0.8)', justifyContent:'center', padding:20 },
   modalCard: { backgroundColor:tema.card, borderRadius:24, padding:24, borderWidth:1, borderColor:tema.border },
   modalTitulo: { color:'#fff', fontSize:20, fontWeight:'800', marginBottom:20 },
@@ -705,5 +728,8 @@ const makeStyles = (tema) => StyleSheet.create({
   temaTxt: { color:'#fff', fontWeight:'600' },
   adminBtn: { padding:15, borderRadius:12, borderWidth:1, borderColor:tema.primary, marginBottom:10 },
   adminBtnTxt: { color:tema.primary, textAlign:'center', fontWeight:'700' },
+  chaveBox: { backgroundColor:tema.card, borderRadius:20, padding:30, alignItems:'center', marginBottom:20, borderWidth:2, borderColor:tema.primary },
+  chaveLabel: { color:tema.sub, fontSize:14, marginBottom:8 },
+  chaveValor: { color:tema.primary, fontSize:36, fontWeight:'900', letterSpacing:8 },
   erroTxt: { color:'#ff4444', textAlign:'center', marginBottom:10 }
 });
