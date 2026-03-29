@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, set, onValue, push } from 'firebase/database';
 
@@ -67,22 +67,19 @@ export default function App() {
     }
   }
 
-  async function carregarFotos() {
-    const fA = await AsyncStorage.getItem('foto_ana');
-    const fH = await AsyncStorage.getItem('foto_harlley');
-    if (fA) setFotoAna(fA);
-    if (fH) setFotoHarlley(fH);
+  function carregarFotos() {
+    onValue(ref(db, 'fotos'), (snap) => {
+      const data = snap.val();
+      if (data) {
+        if (data.ana) setFotoAna(data.ana);
+        if (data.harlley) setFotoHarlley(data.harlley);
+      }
+    });
   }
 
   async function salvarFoto() {
     if (!urlFotoTemp.trim()) return;
-    if (usuario === 'ana') {
-      setFotoAna(urlFotoTemp);
-      await AsyncStorage.setItem('foto_ana', urlFotoTemp);
-    } else {
-      setFotoHarlley(urlFotoTemp);
-      await AsyncStorage.setItem('foto_harlley', urlFotoTemp);
-    }
+    await set(ref(db, 'fotos/' + usuario), urlFotoTemp);
     setEditandoFoto(false);
     setUrlFotoTemp('');
   }
