@@ -1,10 +1,13 @@
 {
-  "versao": "2.1.0",
+  "versao": "2.2.0",
   "notas": [
-    "Tela de perfil com foto",
-    "Historico completo paginado",
-    "Pausa desativa automaticamente",
-    "Notificacao de parabens no dia 28",
-    "Fotos sincronizadas entre os dois"
+    "Calendario mensal com dias marcados",
+    "Admin pode marcar e desmarcar qualquer dia",
+    "Admin pode forcar pausa e despausar",
+    "Admin pode apagar historico",
+    "Data de inicio real com preenchimento automatico",
+    "Temas de cores personalizaveis",
+    "Confete ao completar cartela",
+    "Animacoes melhoradas"
   ]
 }
