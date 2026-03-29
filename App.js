@@ -65,7 +65,6 @@ Notifications.setNotificationHandler({
 export default function App() {
   // ── Auth & Pair state ───────────────────────────────────────────────────────
   const [tela, setTela] = useState("splash");
-  const [iniciando, setIniciando] = useState(true);
   const [authUser, setAuthUser]       = useState(null);   // Firebase Auth user
   const [perfil, setPerfil]           = useState(null);   // { nome, email, isAdmin, casalId, role }
   const [casalId, setCasalId]         = useState(null);
