@@ -1,1 +1,1 @@
-{"versao":"5.0.0","notas":["Correção crítica do crash ao abrir (linha 68)","Melhoria na estabilidade do carregamento do Firebase","Sincronização de temas aprimorada","Versão Master Plan v5.0 implementada"]}
+{"versao":"5.0.1","notas":["Correção de erros contínuos e crash no carregamento","Adicionado tratamento de erro (Try/Catch) global","Melhoria na inicialização do Firebase","Estabilização de listeners em tempo real"]}

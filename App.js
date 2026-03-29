@@ -23,12 +23,18 @@ const firebaseConfig = {
   messagingSenderId: "1005101278287",
   appId: "1:1005101278287:android:e749bbfad114aacbfd763a"
 };
-const firebaseApp = initializeApp(firebaseConfig);
-const db  = getDatabase(firebaseApp);
-const auth = getAuth(firebaseApp);
+
+let firebaseApp, db, auth;
+try {
+  firebaseApp = initializeApp(firebaseConfig);
+  db = getDatabase(firebaseApp);
+  auth = getAuth(firebaseApp);
+} catch (e) {
+  console.error("Firebase Init Error:", e);
+}
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const VERSAO_ATUAL = "5.0.0";
+const VERSAO_ATUAL = "5.0.1";
 const APK_URL      = "https://github.com/HarlleyDu/pilula-ana/releases/latest/download/pilula-ana.apk";
 const ADMIN_EMAIL  = "Harlleyduarte@gmail.com";
 const { width: SW } = Dimensions.get('window');
@@ -45,9 +51,11 @@ const TEMAS = {
 const dateToKey = d => d.toISOString().slice(0,10);
 const todayKey  = () => dateToKey(new Date());
 const addDias   = (key, n) => {
-  const d = new Date(key + 'T12:00:00');
-  d.setDate(d.getDate() + n);
-  return dateToKey(d);
+  try {
+    const d = new Date(key + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return dateToKey(d);
+  } catch(e) { return key; }
 };
 const diasNoMes = (mes, ano) => new Date(ano, mes+1, 0).getDate();
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -144,13 +152,17 @@ export default function App() {
   useEffect(() => {
     checarAtualizacao();
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setAuthUser(user);
-        await carregarPerfil(user.uid);
-      } else {
-        setAuthUser(null);
-        setPerfil(null);
-        setCasalId(null);
+      try {
+        if (user) {
+          setAuthUser(user);
+          await carregarPerfil(user.uid);
+        } else {
+          setAuthUser(null);
+          setPerfil(null);
+          setCasalId(null);
+          setTela('auth');
+        }
+      } catch (e) {
         setTela('auth');
       }
     });
@@ -185,55 +197,65 @@ export default function App() {
   }
 
   async function carregarPerfil(uid) {
-    const snap = await get(ref(db, `usuarios/${uid}`));
-    if (!snap.exists()) { setTela('auth'); return; }
-    const p = snap.val();
-    setPerfil({ ...p, uid });
-    if (p.casalId) {
-      setCasalId(p.casalId);
-      setTela('app');
-      const tSnap = await get(ref(db, `casais/${p.casalId}/tema`));
-      if (tSnap.exists()) aplicarTema(tSnap.val());
-    } else {
-      setTela('pair');
-    }
+    try {
+      const snap = await get(ref(db, `usuarios/${uid}`));
+      if (!snap.exists()) { setTela('auth'); return; }
+      const p = snap.val();
+      setPerfil({ ...p, uid });
+      if (p.casalId) {
+        setCasalId(p.casalId);
+        setTela('app');
+        const tSnap = await get(ref(db, `casais/${p.casalId}/tema`));
+        if (tSnap.exists()) aplicarTema(tSnap.val());
+      } else {
+        setTela('pair');
+      }
+    } catch(e) { setTela('auth'); }
   }
 
   function iniciarListeners(cid) {
-    const paths = ['historico','pausa','pontos','dataInicio','fotos','tema'];
-    paths.forEach(p => {
-      const r = ref(db, `casais/${cid}/${p}`);
-      const unsub = onValue(r, snap => {
-        const val = snap.val();
-        if (p === 'historico')  setHistorico(val || {});
-        if (p === 'pausa')      setPausa(val);
-        if (p === 'pontos')     { if (val) setPontos(val); }
-        if (p === 'dataInicio') { if (val) setDataInicio(val); }
-        if (p === 'fotos')      { if (val) setFotos(val); }
-        if (p === 'tema')       { if (val) aplicarTema(val); }
+    try {
+      const paths = ['historico','pausa','pontos','dataInicio','fotos','tema'];
+      paths.forEach(p => {
+        const r = ref(db, `casais/${cid}/${p}`);
+        const unsub = onValue(r, snap => {
+          const val = snap.val();
+          if (p === 'historico')  setHistorico(val || {});
+          if (p === 'pausa')      setPausa(val);
+          if (p === 'pontos')     { if (val) setPontos(val); }
+          if (p === 'dataInicio') { if (val) setDataInicio(val); }
+          if (p === 'fotos')      { if (val) setFotos(val); }
+          if (p === 'tema')       { if (val) aplicarTema(val); }
+        });
+        listenersRef.current.push({ r, unsub });
       });
-      listenersRef.current.push({ r, unsub });
-    });
 
-    onValue(ref(db, `casais/${cid}/membros`), snap => {
-      const m = snap.val() || {};
-      const ids = Object.keys(m).filter(id => id !== authUser?.uid);
-      if (ids.length > 0) setParceiro({ uid: ids[0], nome: m[ids[0]] });
-    });
-
-    if (perfil?.isAdmin) {
-      onValue(ref(db, 'usuarios'), snap => {
-        const u = snap.val() || {};
-        setAdminUsers(Object.entries(u).map(([uid, d]) => ({ uid, ...d })));
+      const mRef = ref(db, `casais/${cid}/membros`);
+      const mUnsub = onValue(mRef, snap => {
+        const m = snap.val() || {};
+        const ids = Object.keys(m).filter(id => id !== authUser?.uid);
+        if (ids.length > 0) setParceiro({ uid: ids[0], nome: m[ids[0]] });
       });
-    }
-    configurarAlarmes();
+      listenersRef.current.push({ r: mRef, unsub: mUnsub });
+
+      if (perfil?.isAdmin) {
+        const uRef = ref(db, 'usuarios');
+        const uUnsub = onValue(uRef, snap => {
+          const u = snap.val() || {};
+          setAdminUsers(Object.entries(u).map(([uid, d]) => ({ uid, ...d })));
+        });
+        listenersRef.current.push({ r: uRef, unsub: uUnsub });
+      }
+      configurarAlarmes();
+    } catch(e) { console.error("Listener Error:", e); }
   }
 
   function pararListeners() {
     listenersRef.current.forEach(({ r, unsub }) => {
-      off(r);
-      if (unsub) unsub();
+      try {
+        off(r);
+        if (unsub) unsub();
+      } catch(e) {}
     });
     listenersRef.current = [];
   }
@@ -247,23 +269,27 @@ export default function App() {
   }
 
   async function salvarTema(nome) {
-    await set(ref(db, `casais/${casalId}/tema`), nome);
-    setModalTema(false);
+    try {
+      await set(ref(db, `casais/${casalId}/tema`), nome);
+      setModalTema(false);
+    } catch(e) { Alert.alert("Erro", "Não foi possível salvar o tema."); }
   }
 
   async function configurarAlarmes() {
-    if (!Device.isDevice) return;
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return;
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    await Notifications.scheduleNotificationAsync({
-      content: { title: 'Hora da pílula! 💊', body: 'Ana, não esqueça de tomar o Yazflex hoje', sound: true },
-      trigger: { hour: 20, minute: 30, repeats: true },
-    });
-    await Notifications.scheduleNotificationAsync({
-      content: { title: 'Ainda não tomou! ⏰', body: 'Lembra ela de tomar a pílula!', sound: true },
-      trigger: { hour: 20, minute: 40, repeats: true },
-    });
+    try {
+      if (!Device.isDevice) return;
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') return;
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Hora da pílula! 💊', body: 'Ana, não esqueça de tomar o Yazflex hoje', sound: true },
+        trigger: { hour: 20, minute: 30, repeats: true },
+      });
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Ainda não tomou! ⏰', body: 'Lembra ela de tomar a pílula!', sound: true },
+        trigger: { hour: 20, minute: 40, repeats: true },
+      });
+    } catch(e) {}
   }
 
   // ── Auth Logic ──────────────────────────────────────────────────────────────
@@ -299,8 +325,10 @@ export default function App() {
   }
 
   async function fazerLogout() {
-    pararListeners();
-    await signOut(auth);
+    try {
+      pararListeners();
+      await signOut(auth);
+    } catch(e) {}
     setHistorico({}); setPausa(null); setPontos({ ana:0, harlley:0 });
     setDataInicio(null); setFotos({}); setCasalId(null); setPerfil(null);
   }
@@ -308,19 +336,21 @@ export default function App() {
   // ── Pair Logic ──────────────────────────────────────────────────────────────
   async function criarCasal() {
     setPairLoading(true);
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let chave = ''; for (let i=0; i<6; i++) chave += chars[Math.floor(Math.random()*chars.length)];
-    const id = `casal_${Date.now()}`;
-    await set(ref(db, `casais/${id}`), {
-      criadoEm: new Date().toISOString(),
-      chave,
-      membros: { [authUser.uid]: perfil.nome },
-    });
-    await set(ref(db, `pairCodes/${chave}`), { casalId: id });
-    await set(ref(db, `usuarios/${authUser.uid}/casalId`), id);
-    setPairChave(chave);
-    setCasalId(id);
-    setPairStep('mostrarChave');
+    try {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let chave = ''; for (let i=0; i<6; i++) chave += chars[Math.floor(Math.random()*chars.length)];
+      const id = `casal_${Date.now()}`;
+      await set(ref(db, `casais/${id}`), {
+        criadoEm: new Date().toISOString(),
+        chave,
+        membros: { [authUser.uid]: perfil.nome },
+      });
+      await set(ref(db, `pairCodes/${chave}`), { casalId: id });
+      await set(ref(db, `usuarios/${authUser.uid}/casalId`), id);
+      setPairChave(chave);
+      setCasalId(id);
+      setPairStep('mostrarChave');
+    } catch(e) { Alert.alert("Erro", "Falha ao criar dupla."); }
     setPairLoading(false);
   }
 
@@ -328,85 +358,101 @@ export default function App() {
     const code = pairInput.trim().toUpperCase();
     if (code.length < 4) return;
     setPairLoading(true);
-    const snap = await get(ref(db, `pairCodes/${code}`));
-    if (snap.exists()) {
-      const { casalId: cid } = snap.val();
-      await set(ref(db, `casais/${cid}/membros/${authUser.uid}`), perfil.nome);
-      await set(ref(db, `usuarios/${authUser.uid}/casalId`), cid);
-      await remove(ref(db, `pairCodes/${code}`));
-      setCasalId(cid);
-      setTela('app');
-    } else {
-      Alert.alert('Erro', 'Chave não encontrada.');
-    }
+    try {
+      const snap = await get(ref(db, `pairCodes/${code}`));
+      if (snap.exists()) {
+        const { casalId: cid } = snap.val();
+        await set(ref(db, `casais/${cid}/membros/${authUser.uid}`), perfil.nome);
+        await set(ref(db, `usuarios/${authUser.uid}/casalId`), cid);
+        await remove(ref(db, `pairCodes/${code}`));
+        setCasalId(cid);
+        setTela('app');
+      } else {
+        Alert.alert('Erro', 'Chave não encontrada.');
+      }
+    } catch(e) { Alert.alert("Erro", "Falha ao entrar na dupla."); }
     setPairLoading(false);
   }
 
   // ── App Logic ───────────────────────────────────────────────────────────────
   async function marcarTomou() {
     if (!casalId) return;
-    const d = new Date();
-    const hora = d.toTimeString().slice(0,5);
-    const minutos = d.getHours()*60 + d.getMinutes();
-    const dentroDaJanela = minutos >= 20*60+30 && minutos <= 20*60+40;
-    
-    await set(ref(db, `casais/${casalId}/historico/${hoje}`), { data:hoje, hora, tomou:true });
-    
-    const np = { ...pontos };
-    const pNome = (perfil?.nome || '').toLowerCase().includes('harlley') ? 'harlley' : 'ana';
-    if (dentroDaJanela) np.ana = (np.ana||0)+1;
-    else np[pNome] = (np[pNome]||0)+1;
-    await set(ref(db, `casais/${casalId}/pontos`), np);
+    try {
+      const d = new Date();
+      const hora = d.toTimeString().slice(0,5);
+      const minutos = d.getHours()*60 + d.getMinutes();
+      const dentroDaJanela = minutos >= 20*60+30 && minutos <= 20*60+40;
+      
+      await set(ref(db, `casais/${casalId}/historico/${hoje}`), { data:hoje, hora, tomou:true });
+      
+      const np = { ...pontos };
+      const pNome = (perfil?.nome || '').toLowerCase().includes('harlley') ? 'harlley' : 'ana';
+      if (dentroDaJanela) np.ana = (np.ana||0)+1;
+      else np[pNome] = (np[pNome]||0)+1;
+      await set(ref(db, `casais/${casalId}/pontos`), np);
 
-    const total = Object.keys(historico).length + 1;
-    if (total % 28 === 0) {
-      setConfete(true);
-      setTimeout(() => setConfete(false), 3000);
-    }
+      const total = Object.keys(historico).length + 1;
+      if (total % 28 === 0) {
+        setConfete(true);
+        setTimeout(() => setConfete(false), 3000);
+      }
 
-    setModalAmor(true);
-    Animated.sequence([
-      Animated.timing(fadeAmor, { toValue:1, duration:500, useNativeDriver:true }),
-      Animated.delay(2000),
-      Animated.timing(fadeAmor, { toValue:0, duration:500, useNativeDriver:true }),
-    ]).start(() => setModalAmor(false));
+      setModalAmor(true);
+      Animated.sequence([
+        Animated.timing(fadeAmor, { toValue:1, duration:500, useNativeDriver:true }),
+        Animated.delay(2000),
+        Animated.timing(fadeAmor, { toValue:0, duration:500, useNativeDriver:true }),
+      ]).start(() => setModalAmor(false));
+    } catch(e) { Alert.alert("Erro", "Falha ao registrar."); }
   }
 
   async function adminToggleDia(key) {
     if (!isAdmin) return;
-    if (historico[key]) await remove(ref(db, `casais/${casalId}/historico/${key}`));
-    else await set(ref(db, `casais/${casalId}/historico/${key}`), { data:key, hora:'20:30', tomou:true });
+    try {
+      if (historico[key]) await remove(ref(db, `casais/${casalId}/historico/${key}`));
+      else await set(ref(db, `casais/${casalId}/historico/${key}`), { data:key, hora:'20:30', tomou:true });
+    } catch(e) {}
   }
 
   async function definirDataInicio() {
-    const ano = new Date().getFullYear();
-    const dataStr = `${ano}-${String(pickerMes+1).padStart(2,'0')}-${String(pickerDia).padStart(2,'0')}`;
-    await set(ref(db, `casais/${casalId}/dataInicio`), dataStr);
-    setModalInicio(false);
+    try {
+      const ano = new Date().getFullYear();
+      const dataStr = `${ano}-${String(pickerMes+1).padStart(2,'0')}-${String(pickerDia).padStart(2,'0')}`;
+      await set(ref(db, `casais/${casalId}/dataInicio`), dataStr);
+      setModalInicio(false);
+    } catch(e) {}
   }
 
   async function iniciarPausa() {
-    const fim = addDias(hoje, 4);
-    await set(ref(db, `casais/${casalId}/pausa`), { inicio:hoje, fim, ativa:true });
+    try {
+      const fim = addDias(hoje, 4);
+      await set(ref(db, `casais/${casalId}/pausa`), { inicio:hoje, fim, ativa:true });
+    } catch(e) {}
   }
 
   async function despausar() {
-    await set(ref(db, `casais/${casalId}/pausa/ativa`), false);
+    try {
+      await set(ref(db, `casais/${casalId}/pausa/ativa`), false);
+    } catch(e) {}
   }
 
   async function salvarFotoUrl() {
     if (!urlFotoTemp.trim()) return;
-    await set(ref(db, `casais/${casalId}/fotos/${authUser.uid}`), urlFotoTemp.trim());
-    setUrlFotoTemp(''); setModalFotoUrl(false);
+    try {
+      await set(ref(db, `casais/${casalId}/fotos/${authUser.uid}`), urlFotoTemp.trim());
+      setUrlFotoTemp(''); setModalFotoUrl(false);
+    } catch(e) {}
   }
 
   async function enviarSugestao() {
     if (!sugestao.trim()) return;
-    await push(ref(db, `casais/${casalId}/sugestoes`), {
-      texto: sugestao.trim(), data: new Date().toISOString(), usuario: perfil?.nome
-    });
-    setSugestao('');
-    Alert.alert('Sucesso', 'Sugestão enviada!');
+    try {
+      await push(ref(db, `casais/${casalId}/sugestoes`), {
+        texto: sugestao.trim(), data: new Date().toISOString(), usuario: perfil?.nome
+      });
+      setSugestao('');
+      Alert.alert('Sucesso', 'Sugestão enviada!');
+    } catch(e) {}
   }
 
   // ── Render Helpers ──────────────────────────────────────────────────────────
