@@ -459,7 +459,6 @@ export default function App() {
     onValue(acaoRef, snap => {
       const acao = snap.val();
       if (acao?.quem !== perfil?.nome && acao?.tipo === 'tomou') {
-        // Só exibe se foi o parceiro que marcou (não eu mesmo)
         Alert.alert('💊 Ela tomou!', `${acao.quem} marcou às ${acao.hora} 💖`);
       }
     });
